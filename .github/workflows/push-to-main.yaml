@@ -5,7 +5,7 @@ on:
 
 # Adicione permissões explícitas para o workflow
 permissions:
-  contents: read
+  contents: write
   packages: write
 
 jobs:
@@ -34,6 +34,8 @@ jobs:
     needs: tag
     name: Build and Push
     runs-on: ubuntu-latest
+    permissions:
+      packages: write
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -83,8 +85,8 @@ jobs:
           push: true
           platforms: linux/amd64,linux/arm64
           tags: |
-            ghcr.io/andrelucasti/rinha-backend-2025:${{ steps.last_tag.outputs.tag }}
-            ghcr.io/andrelucasti/rinha-backend-2025:latest
+            ghcr.io/andrelucasti/rinha-backend-2025-payments:${{ steps.last_tag.outputs.tag }}
+            ghcr.io/andrelucasti/rinha-backend-2025-payments:latest
 
       
 
