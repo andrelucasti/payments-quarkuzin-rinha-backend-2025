@@ -32,6 +32,14 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
+      - name: Set up Java and build native
+        uses: actions/setup-java@v4
+        with:
+          java-version: '21'
+          distribution: 'temurin'
+          cache: 'maven'
+      - run: ./mvnw clean package -Pnative -Dquarkus.native.container-build=true
+
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v3
       
@@ -56,7 +64,7 @@ jobs:
         uses: docker/build-push-action@v5.1.0
         with:
           context: .
-          file: ./Dockerfile
+          file: ./src/main/docker/Dockerfile.native
           push: true
           platforms: linux/amd64,linux/arm64
           tags: |
