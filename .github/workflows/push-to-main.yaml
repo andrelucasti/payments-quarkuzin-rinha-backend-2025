@@ -1,0 +1,69 @@
+on:
+  push:
+    branches:
+      - main
+
+# Adicione permissões explícitas para o workflow
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  tag:
+    name: Tag Release
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      - name: Generate tag
+        uses: go-semantic-release/action@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      
+  
+
+  build-and-push:
+    needs: tag
+    name: Build and Push
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+      
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Login to GitHub Container Registry
+        uses: docker/login-action@v3.4.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.repository_owner }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      
+      - name: Last tag
+        id: last_tag
+        run: |
+          git fetch --tags
+          TAG=$(git describe --tags --abbrev=0)
+          echo "tag=$TAG" >> $GITHUB_OUTPUT
+
+      - name: Build and push
+        uses: docker/build-push-action@v5.1.0
+        with:
+          context: .
+          file: ./src/main/docker/Dockerfile.native
+          push: true
+          platforms: linux/amd64,linux/arm64
+          tags: |
+            ghcr.io/andrelucasti/rinha-backend-2025:${{ steps.last_tag.outputs.tag }}
+            ghcr.io/andrelucasti/rinha-backend-2025:latest
+
+      
+
+      
+
