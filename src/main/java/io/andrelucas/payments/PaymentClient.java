@@ -1,5 +1,6 @@
 package io.andrelucas.payments;
 
+import io.smallrye.mutiny.Uni;
 import io.vertx.mutiny.redis.client.RedisAPI;
 import jakarta.enterprise.context.ApplicationScoped;
 import org.eclipse.microprofile.config.inject.ConfigProperty;
@@ -12,9 +13,12 @@ import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
+import java.time.Duration;
 import java.time.Instant;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.Executor;
 import java.util.concurrent.Executors;
 
 @ApplicationScoped
@@ -25,6 +29,7 @@ public class PaymentClient {
     private final String defaultBaseUri;
     private final String fallbackBaseUri;
     private final RedisAPI redisAPI;
+    private final Executor executor;
 
     public PaymentClient(@ConfigProperty(name = "payment-processor.default.base-url") final String defaultBaseUri,
                          @ConfigProperty(name = "payment-processor.fallback.base-url") final String fallbackBaseUri,
@@ -33,25 +38,26 @@ public class PaymentClient {
         this.defaultBaseUri = defaultBaseUri;
         this.fallbackBaseUri = fallbackBaseUri;
         this.redisAPI = redisAPI;
+        this.executor = Executors.newVirtualThreadPerTaskExecutor();
         this.httpClient = HttpClient.newBuilder()
                 .version(HttpClient.Version.HTTP_1_1)
-                .executor(Executors.newVirtualThreadPerTaskExecutor())
+                .executor(executor)
                 .build();
     }
 
     public void processPayment(final PaymentClientRequest paymentRequest) {
-
-
-       try{
-           sendDefault(paymentRequest);
-       } catch (Exception e) {
-           log.error("Got an error at send payment", e);
-           try {
-               sendFallback(paymentRequest);
-           } catch (Exception fallbackEx) {
-               log.error("Got an error at send payment to fallback", fallbackEx);
-           }
-       }
+        CompletableFuture.runAsync(() -> {
+            try{
+                sendDefault(paymentRequest);
+            } catch (Exception e) {
+                log.error("Got an error at send payment", e);
+                try {
+                    sendFallback(paymentRequest);
+                } catch (Exception fallbackEx) {
+                    log.error("Got an error at send payment to fallback", fallbackEx);
+                }
+            }
+        },  executor);
     }
 
     private String toJson(final PaymentClientRequest paymentRequest) {
@@ -61,7 +67,6 @@ public class PaymentClient {
                 "\"requestedAt\":\"" + DateTimeFormatter.ISO_INSTANT.format(paymentRequest.requestedAt()) + "\"" +
                 "}";
     }
-
 
     private String toData(final PaymentClientRequest paymentRequest, final String processorType) {
         return "{" +
@@ -80,6 +85,7 @@ public class PaymentClient {
         HttpRequest request = HttpRequest.newBuilder()
                 .uri(URI.create(defaultBaseUri + "/payments"))
                 .header("Content-Type", "application/json")
+                .timeout(Duration.ofSeconds(5)) // Add request timeout
                 .POST(HttpRequest.BodyPublishers.ofString(payload))
                 .build();
 
@@ -104,6 +110,7 @@ public class PaymentClient {
         HttpRequest request = HttpRequest.newBuilder()
                 .uri(URI.create(fallbackBaseUri + "/payments"))
                 .header("Content-Type", "application/json")
+                .timeout(Duration.ofSeconds(5)) // Add request timeout
                 .POST(HttpRequest.BodyPublishers.ofString(payload))
                 .build();
 

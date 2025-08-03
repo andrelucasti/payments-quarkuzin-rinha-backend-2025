@@ -22,21 +22,27 @@ public class PaymentConsumer {
     private final RedisAPI redisAPI;
     private final PaymentClient paymentClient;
 
+    private final String redisBlock;
+    private final String redisCount;
+
 
 
     public PaymentConsumer(@ConfigProperty(name="app.consumer-name") final String consumerName,
                            final RedisAPI redisAPI,
-                           final PaymentClient paymentClient) {
+                           final PaymentClient paymentClient,
+                           @ConfigProperty(name="app.consumer-block") String redisBlock,
+                           @ConfigProperty(name="app.consumer-count") String redisCount) {
 
         this.consumerName = consumerName;
         this.redisAPI = redisAPI;
-
-
         this.paymentClient = paymentClient;
+        this.redisBlock = redisBlock;
+        this.redisCount = redisCount;
     }
 
     @PostConstruct
-    void init(){
+    void init() throws InterruptedException {
+        Thread.sleep(1000);
         consumer();
     }
 
@@ -45,7 +51,8 @@ public class PaymentConsumer {
         List<String> args = List.of(
                 "GROUP", "payments_group",
                 consumerName,
-                "BLOCK", "0",
+                "BLOCK", redisBlock,
+                "COUNT", redisCount,
                 "STREAMS", "payments_stream",
                 ">"
                 );
@@ -68,15 +75,11 @@ public class PaymentConsumer {
 
     private void ack(List<PaymentEvent> events) {
        events.forEach(event -> {
-           redisAPI.xack(List.of(
+           redisAPI.xackAndForget(List.of(
                    "payments_stream",
                    "payments_group",
                    event.id()
-           ))
-                   .onFailure()
-                   .invoke(e -> log.error("Error ack event {}", event.id(), e))
-                   .subscribe()
-           .with(r -> log.info("event acked {}", event.id()));
+           ));
        });
     }
 
@@ -84,29 +87,31 @@ public class PaymentConsumer {
 
         public static List<PaymentEvent> from(Response response) {
             var events = new java.util.ArrayList<PaymentEvent>();
+            if (response != null){
+                for (Response stream : response) {
+                    Response messages = stream.get(1);
 
-            for (Response stream : response) {
-                Response messages = stream.get(1);
+                    for (Response msg : messages) {
+                        String id = msg.get(0).toString();
+                        Response fields = msg.get(1);
 
-                for (Response msg : messages) {
-                    String id = msg.get(0).toString();
-                    Response fields = msg.get(1);
+                        String correlationId = null;
+                        BigDecimal amount = null;
 
-                    String correlationId = null;
-                    BigDecimal amount = null;
-
-                    for (int i = 0; i < fields.size(); i += 2) {
-                        String key = fields.get(i).toString();
-                        String value = fields.get(i + 1).toString();
-                        switch (key) {
-                            case "correlationId" -> correlationId = value;
-                            case "amount" -> amount = new BigDecimal(value);
+                        for (int i = 0; i < fields.size(); i += 2) {
+                            String key = fields.get(i).toString();
+                            String value = fields.get(i + 1).toString();
+                            switch (key) {
+                                case "correlationId" -> correlationId = value;
+                                case "amount" -> amount = new BigDecimal(value);
+                            }
                         }
-                    }
 
-                    events.add(new PaymentEvent(id, correlationId, amount));
+                        events.add(new PaymentEvent(id, correlationId, amount));
+                    }
                 }
             }
+
 
             return events;
         }

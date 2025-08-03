@@ -12,12 +12,18 @@ jobs:
   tag:
     name: Tag Release
     runs-on: ubuntu-latest
+    outputs:
+      tag: ${{ steps.semantic_release.outputs.version }}
     permissions:
       contents: write
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          fetch-tags: true
       - name: Generate tag
+        id: semantic_release
         uses: go-semantic-release/action@v1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -31,6 +37,9 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          fetch-tags: true
 
       - name: Set up Java and build native
         uses: actions/setup-java@v4
@@ -57,7 +66,13 @@ jobs:
         id: last_tag
         run: |
           git fetch --tags
-          TAG=$(git describe --tags --abbrev=0)
+          # Try to get the latest tag from git, fallback to the tag from semantic release
+          if TAG=$(git describe --tags --abbrev=0 2>/dev/null); then
+            echo "Found tag from git describe: $TAG"
+          else
+            TAG="${{ needs.tag.outputs.tag }}"
+            echo "Using tag from semantic release: $TAG"
+          fi
           echo "tag=$TAG" >> $GITHUB_OUTPUT
 
       - name: Build and push
