@@ -49,7 +49,7 @@ jobs:
           java-version: '21'
           distribution: 'temurin'
           cache: 'maven'
-      - run: ./mvnw clean package -Pnative -Dquarkus.native.container-build=true
+      - run: ./mvnw clean package -Pnative
 
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v3
