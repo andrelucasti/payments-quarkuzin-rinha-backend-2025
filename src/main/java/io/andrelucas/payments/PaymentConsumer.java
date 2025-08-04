@@ -11,8 +11,10 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.math.BigDecimal;
+import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
+import java.util.concurrent.Executor;
 
 @Startup
 @ApplicationScoped
@@ -21,6 +23,7 @@ public class PaymentConsumer {
     private final String consumerName;
     private final RedisAPI redisAPI;
     private final PaymentClient paymentClient;
+    private final Executor executor;
 
     private final String redisBlock;
     private final String redisCount;
@@ -30,12 +33,14 @@ public class PaymentConsumer {
     public PaymentConsumer(@ConfigProperty(name="app.consumer-name") final String consumerName,
                            final RedisAPI redisAPI,
                            final PaymentClient paymentClient,
+                           @VirtualThreads final Executor executor,
                            @ConfigProperty(name="app.consumer-block") String redisBlock,
                            @ConfigProperty(name="app.consumer-count") String redisCount) {
 
         this.consumerName = consumerName;
         this.redisAPI = redisAPI;
         this.paymentClient = paymentClient;
+        this.executor = executor;
         this.redisBlock = redisBlock;
         this.redisCount = redisCount;
     }
@@ -43,10 +48,10 @@ public class PaymentConsumer {
     @PostConstruct
     void init() throws InterruptedException {
         Thread.sleep(1000);
-        consumer();
+        executor.execute(this::consumer);
     }
 
-    @VirtualThreads
+
     private void consumer(){
         List<String> args = List.of(
                 "GROUP", "payments_group",
@@ -61,11 +66,11 @@ public class PaymentConsumer {
                 .map(PaymentEvent::from)
                 .onFailure()
                 .invoke(err -> log.error("Error reading group", err))
-                .repeat().indefinitely()
+                .repeat().withDelay(Duration.ofSeconds(1))
+                .indefinitely()
                 .subscribe()
                 .with(response -> {
                     response.forEach(event -> {
-
                         PaymentClient.PaymentClientRequest request = new PaymentClient.PaymentClientRequest(event.correlationId(), event.amount(), Instant.now());
                         paymentClient.processPayment(request);
                         ack(response);

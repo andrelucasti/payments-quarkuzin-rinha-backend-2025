@@ -1,6 +1,5 @@
 package io.andrelucas.payments;
 
-import io.quarkus.virtual.threads.VirtualThreads;
 import io.vertx.mutiny.redis.client.RedisAPI;
 import jakarta.enterprise.context.ApplicationScoped;
 import org.slf4j.Logger;
@@ -18,7 +17,6 @@ public class PaymentProducer {
         this.redisAPI = redisAPI;
     }
 
-    @VirtualThreads
     public void create(final PaymentRequest paymentRequest) {
         final var args = List.of(
                 "payments_stream",

@@ -1,5 +1,6 @@
 package io.andrelucas.payments;
 
+import io.quarkus.virtual.threads.VirtualThreads;
 import io.vertx.mutiny.redis.client.RedisAPI;
 import jakarta.enterprise.context.ApplicationScoped;
 import org.eclipse.microprofile.config.inject.ConfigProperty;
@@ -32,12 +33,13 @@ public class PaymentClient {
 
     public PaymentClient(@ConfigProperty(name = "payment-processor.default.base-url") final String defaultBaseUri,
                          @ConfigProperty(name = "payment-processor.fallback.base-url") final String fallbackBaseUri,
-                         final RedisAPI redisAPI) {
+                         final RedisAPI redisAPI,
+                         @VirtualThreads final Executor executor) {
 
         this.defaultBaseUri = defaultBaseUri;
         this.fallbackBaseUri = fallbackBaseUri;
         this.redisAPI = redisAPI;
-        this.executor = Executors.newVirtualThreadPerTaskExecutor();
+        this.executor = executor;
         this.httpClient = HttpClient.newBuilder()
                 .version(HttpClient.Version.HTTP_1_1)
                 .executor(executor)
