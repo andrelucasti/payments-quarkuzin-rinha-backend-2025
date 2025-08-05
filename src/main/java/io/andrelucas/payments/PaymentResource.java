@@ -29,7 +29,6 @@ public class PaymentResource {
     public RestResponse<Void> create(PaymentRequest paymentRequest) {
 
         executor.execute(() -> paymentProducer.create(paymentRequest));
-        //paymentProducer.create(paymentRequest);
 
         return RestResponse.ok();
     }

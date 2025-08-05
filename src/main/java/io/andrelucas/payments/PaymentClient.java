@@ -19,7 +19,6 @@ import java.time.format.DateTimeFormatter;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
-import java.util.concurrent.Executors;
 
 @ApplicationScoped
 public class PaymentClient {
@@ -81,7 +80,7 @@ public class PaymentClient {
 
     private void sendDefault(final PaymentClientRequest paymentRequest) throws IOException, InterruptedException {
         String payload = toJson(paymentRequest);
-        log.info("Sending payment to default {}", payload);
+        log.debug("Sending payment to default {}", payload);
 
         HttpRequest request = HttpRequest.newBuilder()
                 .uri(URI.create(defaultBaseUri + "/payments"))
@@ -97,9 +96,9 @@ public class PaymentClient {
                     .onFailure()
                     .invoke(e -> log.error("Got an error at to save payment", e))
                     .subscribe()
-                    .with( r -> log.info(r.toString()));
+                    .with( r -> log.debug(r.toString()));
         } else {
-            log.error("Got an error at to save payment status code: {}, body: {}", httpResponse.statusCode(), httpResponse.body());
+            log.error("Got an error at to send payment status code: {}, body: {}", httpResponse.statusCode(), httpResponse.body());
             throw new RuntimeException("Got an error at to send payment");
         }
 
@@ -115,15 +114,19 @@ public class PaymentClient {
                 .POST(HttpRequest.BodyPublishers.ofString(payload))
                 .build();
 
-        this.httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+        HttpResponse<String> httpResponse = this.httpClient.send(request, HttpResponse.BodyHandlers.ofString());
 
-        String data = toData(paymentRequest, "fallback");
-        redisAPI.zadd(List.of("payments:timeline", String.valueOf(paymentRequest.requestedAt().toEpochMilli()), data))
-                .onFailure()
-                .invoke(e -> log.error("Got an error at to save payment", e))
-                .subscribe()
-                .with( r -> log.info(r.toString()));
-
+        if (httpResponse.statusCode() == 200) {
+            String data = toData(paymentRequest, "fallback");
+            redisAPI.zadd(List.of("payments:timeline", String.valueOf(paymentRequest.requestedAt().toEpochMilli()), data))
+                    .onFailure()
+                    .invoke(e -> log.error("Got an error at to save payment", e))
+                    .subscribe()
+                    .with( r -> log.debug(r.toString()));
+        }  else {
+            log.error("Got an error at to send payment status code: {}, body: {}", httpResponse.statusCode(), httpResponse.body());
+            throw new RuntimeException("Got an error at to send payment");
+        }
     }
     public record PaymentClientRequest(String correlationId, BigDecimal amount, Instant requestedAt) {}
 

@@ -27,6 +27,7 @@ public class PaymentConsumer {
 
     private final String redisBlock;
     private final String redisCount;
+    private final Integer redisDelay;
 
 
 
@@ -35,7 +36,8 @@ public class PaymentConsumer {
                            final PaymentClient paymentClient,
                            @VirtualThreads final Executor executor,
                            @ConfigProperty(name="app.consumer-block") String redisBlock,
-                           @ConfigProperty(name="app.consumer-count") String redisCount) {
+                           @ConfigProperty(name="app.consumer-count") String redisCount,
+                           @ConfigProperty(name="app.consumer-delay-in-ms") Integer redisDelay) {
 
         this.consumerName = consumerName;
         this.redisAPI = redisAPI;
@@ -43,6 +45,7 @@ public class PaymentConsumer {
         this.executor = executor;
         this.redisBlock = redisBlock;
         this.redisCount = redisCount;
+        this.redisDelay = redisDelay;
     }
 
     @PostConstruct
@@ -66,12 +69,13 @@ public class PaymentConsumer {
                 .map(PaymentEvent::from)
                 .onFailure()
                 .invoke(err -> log.error("Error reading group", err))
-                .repeat().withDelay(Duration.ofSeconds(1))
+                .repeat()
+                .withDelay(Duration.ofMillis(redisDelay))
                 .indefinitely()
                 .subscribe()
                 .with(response -> {
                     response.forEach(event -> {
-                        PaymentClient.PaymentClientRequest request = new PaymentClient.PaymentClientRequest(event.correlationId(), event.amount(), Instant.now());
+                        PaymentClient.PaymentClientRequest request = new PaymentClient.PaymentClientRequest(event.correlationId(), event.amount(), event.requestedAt());
                         paymentClient.processPayment(request);
                         ack(response);
                     });
@@ -88,7 +92,7 @@ public class PaymentConsumer {
        });
     }
 
-    public record PaymentEvent(String id, String correlationId, BigDecimal amount) {
+    public record PaymentEvent(String id, String correlationId, BigDecimal amount, Instant requestedAt) {
 
         public static List<PaymentEvent> from(Response response) {
             var events = new java.util.ArrayList<PaymentEvent>();
@@ -102,6 +106,7 @@ public class PaymentConsumer {
 
                         String correlationId = null;
                         BigDecimal amount = null;
+                        Instant requestedAt = null;
 
                         for (int i = 0; i < fields.size(); i += 2) {
                             String key = fields.get(i).toString();
@@ -109,10 +114,11 @@ public class PaymentConsumer {
                             switch (key) {
                                 case "correlationId" -> correlationId = value;
                                 case "amount" -> amount = new BigDecimal(value);
+                                case "requestedAt" -> requestedAt = Instant.ofEpochMilli(Long.parseLong(value));
                             }
                         }
 
-                        events.add(new PaymentEvent(id, correlationId, amount));
+                        events.add(new PaymentEvent(id, correlationId, amount, requestedAt));
                     }
                 }
             }

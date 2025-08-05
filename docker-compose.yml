@@ -28,11 +28,12 @@ services:
       PAYMENT_PROCESSOR_FALLBACK_BASE_URL: http://payment-processor-fallback:8080
       REDIS_URL: redis://redis:6379
       REDIS_MAX_POOL_SIZE: 50
-      REDIS_MAX_POOL_WAITING: 100
+      REDIS_MAX_POOL_WAITING: 1000
       PORT: 8080
       CONSUMER_NAME: payments-01
       CONSUMER_BLOCK: 5000
       CONSUMER_COUNT: 3
+      CONSUMER_DELAY: 1
     networks:
       - rinha-network
       - payment-processor
@@ -55,11 +56,12 @@ services:
       PAYMENT_PROCESSOR_FALLBACK_BASE_URL: http://payment-processor-fallback:8080
       REDIS_URL: redis://redis:6379
       REDIS_MAX_POOL_SIZE: 50
-      REDIS_MAX_POOL_WAITING: 100
+      REDIS_MAX_POOL_WAITING: 1000
       PORT: 8080
       CONSUMER_NAME: payments-02
       CONSUMER_BLOCK: 5000
       CONSUMER_COUNT: 3
+      CONSUMER_DELAY: 1
     deploy:
       resources:
         limits:
