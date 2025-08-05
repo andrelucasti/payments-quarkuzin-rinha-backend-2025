@@ -34,6 +34,7 @@ services:
       CONSUMER_BLOCK: 5000
       CONSUMER_COUNT: 3
       CONSUMER_DELAY: 1
+      LOG_LEVEL: INFO
     networks:
       - rinha-network
       - payment-processor
@@ -62,6 +63,7 @@ services:
       CONSUMER_BLOCK: 5000
       CONSUMER_COUNT: 3
       CONSUMER_DELAY: 1
+      LOG_LEVEL: INFO
     deploy:
       resources:
         limits:
