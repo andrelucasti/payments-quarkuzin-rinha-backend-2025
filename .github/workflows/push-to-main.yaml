@@ -25,8 +25,15 @@ jobs:
       - name: Generate tag
         id: semantic_release
         uses: go-semantic-release/action@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          allow-initial-development-versions: true
+          force-bump-patch-version: false
+      
+      - name: Debug semantic release output
+        run: |
+          echo "Semantic release version: ${{ steps.semantic_release.outputs.version }}"
+          echo "Semantic release changelog: ${{ steps.semantic_release.outputs.changelog }}"
       
   
 
@@ -34,6 +41,7 @@ jobs:
     needs: tag
     name: Build and Push
     runs-on: ubuntu-latest
+    if: needs.tag.outputs.tag != ''
     permissions:
       packages: write
     steps:
